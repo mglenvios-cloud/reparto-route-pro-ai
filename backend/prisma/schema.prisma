@@ -1,0 +1,531 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  DISPATCHER
+  DRIVER
+}
+
+enum DriverStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+  ON_BREAK
+}
+
+enum VehicleType {
+  CAR
+  VAN
+  TRUCK
+  MOTORCYCLE
+  BICYCLE
+  OTHER
+}
+
+enum VehicleStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum OrderStatus {
+  PENDING
+  ASSIGNED
+  IN_TRANSIT
+  ARRIVING
+  DELIVERED
+  NOT_DELIVERED
+  CUSTOMER_ABSENT
+  RESCHEDULED
+  CANCELLED
+}
+
+enum VisitStatus {
+  PENDING
+  ASSIGNED
+  IN_TRANSIT
+  ARRIVING
+  VISITED
+  NOT_VISITED
+  CUSTOMER_ABSENT
+  RESCHEDULED
+  CANCELLED
+}
+
+enum RouteStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EvidenceType {
+  PHOTO
+  SIGNATURE
+  QR_CODE
+  BARCODE
+  AUDIO
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  address     String?
+  phone       String?
+  email       String?
+  timezone    String   @default("America/Mexico_City")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  drivers     Driver[]
+  vehicles    Vehicle[]
+  customers   Customer[]
+  orders      Order[]
+  visits      Visit[]
+  routes      Route[]
+  zones       Zone[]
+  branches    Branch[]
+  configs     Configuration[]
+  auditLogs   AuditLog[]
+}
+
+model Branch {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  address     String
+  latitude    Float?
+  longitude   Float?
+  phone       String?
+  email       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users       User[]
+}
+
+model User {
+  id            String     @id @default(uuid())
+  companyId     String
+  branchId      String?
+  email         String     @unique
+  password      String
+  name          String
+  lastName      String?
+  phone         String?
+  avatar        String?
+  role          UserRole   @default(DISPATCHER)
+  isActive      Boolean    @default(true)
+  refreshToken  String?
+  lastLogin     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  company       Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch        Branch?    @relation(fields: [branchId], references: [id])
+  driver        Driver?
+  auditLogs     AuditLog[]
+  notifications Notification[]
+}
+
+model Driver {
+  id            String        @id @default(uuid())
+  companyId     String
+  userId        String?       @unique
+  code          String        @unique
+  name          String
+  lastName      String?
+  phone         String
+  email         String?
+  address       String?
+  latitude      Float?
+  longitude     Float?
+  status        DriverStatus  @default(OFFLINE)
+  speed         Float         @default(0)
+  heading       Float         @default(0)
+  isActive      Boolean       @default(true)
+  licenseNumber String?
+  licenseExpiry DateTime?
+  photo         String?
+  lastLatitude  Float?
+  lastLongitude Float?
+  lastLocationAt DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user          User?         @relation(fields: [userId], references: [id])
+  vehicles      Vehicle[]
+  orders        Order[]
+  visits        Visit[]
+  routes        Route[]
+  gpsLogs       GPSLog[]
+  notifications Notification[]
+}
+
+model Vehicle {
+  id              String        @id @default(uuid())
+  companyId       String
+  driverId        String?
+  plate           String        @unique
+  brand           String?
+  model           String?
+  year            Int?
+  color           String?
+  type            VehicleType   @default(CAR)
+  capacity        Float?
+  fuelType        String?
+  fuelCapacity    Float?
+  insurancePolicy String?
+  insuranceExpiry DateTime?
+  status          VehicleStatus @default(ACTIVE)
+  latitude        Float?
+  longitude       Float?
+  speed           Float         @default(0)
+  heading         Float         @default(0)
+  lastLocationAt  DateTime?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driver          Driver?       @relation(fields: [driverId], references: [id])
+  fuelLogs        Fuel[]
+  maintenanceLogs Maintenance[]
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  lastName    String?
+  phone       String?
+  email       String?
+  documentId  String?
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  addresses   Address[]
+  orders      Order[]
+  visits      Visit[]
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  customerId String
+  label      String?
+  street     String
+  number     String?
+  colony     String?
+  city       String
+  state      String?
+  zipCode    String?
+  country    String   @default("México")
+  reference  String?
+  latitude   Float?
+  longitude  Float?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orders     Order[]
+  visits     Visit[]
+  routeStops RouteStop[]
+}
+
+model Zone {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  color     String   @default("#3B82F6")
+  polygon   Json?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id              String       @id @default(uuid())
+  companyId       String
+  customerId      String
+  addressId       String
+  driverId        String?
+  routeId         String?
+  code            String       @unique
+  description     String?
+  notes           String?
+  status          OrderStatus  @default(PENDING)
+  priority        Int          @default(0)
+  scheduledDate   DateTime?
+  scheduledStart  DateTime?
+  scheduledEnd    DateTime?
+  deliveredAt     DateTime?
+  signature       String?
+  photoUrl        String?
+  value           Float?
+  weight          Float?
+  quantity        Int          @default(1)
+  isPaid          Boolean      @default(false)
+  companyIdOrigin String?
+  latitude        Float?
+  longitude       Float?
+  destinationLat  Float?
+  destinationLng  Float?
+  eta             DateTime?
+  distance        Float?
+  duration        Int?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  company         Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer        Customer     @relation(fields: [customerId], references: [id])
+  address         Address      @relation(fields: [addressId], references: [id])
+  driver          Driver?      @relation(fields: [driverId], references: [id])
+  route           Route?       @relation(fields: [routeId], references: [id])
+  evidence        Evidence[]
+}
+
+model Visit {
+  id              String       @id @default(uuid())
+  companyId       String
+  customerId      String
+  addressId       String
+  driverId        String?
+  routeId         String?
+  code            String       @unique
+  title           String
+  description     String?
+  notes           String?
+  status          VisitStatus  @default(PENDING)
+  priority        Int          @default(0)
+  scheduledDate   DateTime?
+  scheduledStart  DateTime?
+  scheduledEnd    DateTime?
+  visitedAt       DateTime?
+  duration        Int?
+  signature       String?
+  latitude        Float?
+  longitude       Float?
+  destinationLat  Float?
+  destinationLng  Float?
+  eta             DateTime?
+  distance        Float?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  company         Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer        Customer     @relation(fields: [customerId], references: [id])
+  address         Address      @relation(fields: [addressId], references: [id])
+  driver          Driver?      @relation(fields: [driverId], references: [id])
+  route           Route?       @relation(fields: [routeId], references: [id])
+  evidence        Evidence[]
+}
+
+model Route {
+  id          String       @id @default(uuid())
+  companyId   String
+  driverId    String?
+  name        String
+  description String?
+  status      RouteStatus  @default(PLANNED)
+  date        DateTime?
+  totalDistance Float      @default(0)
+  totalDuration Int        @default(0)
+  optimized    Boolean     @default(false)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driver      Driver?      @relation(fields: [driverId], references: [id])
+  routeStops  RouteStop[]
+  orders      Order[]
+  visits      Visit[]
+  trackings   Tracking[]
+}
+
+model RouteStop {
+  id          Int      @id @default(autoincrement())
+  routeId     String
+  addressId   String
+  orderId     String?
+  visitId     String?
+  sequence    Int
+  latitude    Float?
+  longitude   Float?
+  status      String   @default("PENDING")
+  arrivedAt   DateTime?
+  departedAt  DateTime?
+  distance        Float?
+  createdAt       DateTime     @default(now())
+  updatedAt   DateTime @updatedAt
+
+  route       Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  address     Address  @relation(fields: [addressId], references: [id])
+}
+
+model Tracking {
+  id        String   @id @default(uuid())
+  routeId   String
+  driverId  String?
+  vehicleId String?
+  latitude  Float
+  longitude Float
+  speed     Float    @default(0)
+  heading   Float    @default(0)
+  accuracy  Float?
+  timestamp DateTime @default(now())
+
+  route     Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+}
+
+model GPSLog {
+  id        String   @id @default(uuid())
+  driverId  String
+  latitude  Float
+  longitude Float
+  speed     Float    @default(0)
+  heading   Float    @default(0)
+  accuracy  Float?
+  timestamp DateTime @default(now())
+
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+}
+
+model Evidence {
+  id        String       @id @default(uuid())
+  orderId   String?
+  visitId   String?
+  type      EvidenceType
+  url       String
+  mimeType  String?
+  notes     String?
+  createdAt DateTime     @default(now())
+
+  order     Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  visit     Visit?       @relation(fields: [visitId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String?
+  driverId  String?
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  read      Boolean          @default(false)
+  data      Json?
+  createdAt DateTime         @default(now())
+
+  user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  driver    Driver?          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+}
+
+model Incident {
+  id          String   @id @default(uuid())
+  companyId   String
+  driverId    String?
+  vehicleId   String?
+  title       String
+  description String?
+  latitude    Float?
+  longitude   Float?
+  severity    String   @default("LOW")
+  resolved    Boolean  @default(false)
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Maintenance {
+  id              String        @id @default(uuid())
+  vehicleId       String
+  description     String
+  type            String
+  scheduledDate   DateTime?
+  completedDate   DateTime?
+  cost            Float?
+  mileage         Float?
+  notes           String?
+  status          String        @default("PENDING")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  vehicle         Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+model Fuel {
+  id          String   @id @default(uuid())
+  vehicleId   String
+  driverId    String?
+  liters      Float
+  cost        Float
+  mileage     Float?
+  fullTank    Boolean  @default(false)
+  stationName String?
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
+
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  companyId   String
+  userId      String?
+  action      String
+  entity      String
+  entityId    String?
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id])
+}
+
+model Configuration {
+  id        String   @id @default(uuid())
+  companyId String
+  key       String
+  value     Json
+  category  String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key])
+}
